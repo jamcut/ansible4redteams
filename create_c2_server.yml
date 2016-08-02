@@ -1,0 +1,96 @@
+---
+# Copyright (c) 2016, Jeff McCutchan [jamcut]
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# Ansible playbook to initialize a new C2 server and install a few red team tools
+# Author: @jamcut
+
+- name: Bootstrap C2 Server
+  hosts: localhost
+  vars:
+    ssh_pub_key: "{{ lookup('file','PATH TO PUBLIC KEY') }}"
+    droplet_name: "{{ args.droplet_name }}"
+
+  tasks:
+    - name: Verify Red Team SSH Key
+      digital_ocean:
+        state: present
+        command: ssh
+        name: UPDATE # whatever your ssh key is called on Digital Ocean
+        ssh_pub_key: "{{ ssh_pub_key }}"
+        api_token: "{{ lookup('env','DO_API_KEY') }}"
+      register: red_team_ssh_key
+
+    - name: Create Droplet
+      digital_ocean:
+        state: present
+        command: droplet
+        name: "{{ droplet_name }}"
+        api_token: "{{ lookup('env','DO_API_KEY') }}"
+        image_id: "{{ args.slug }}"
+        ssh_key_ids: "{{ red_team_ssh_key.ssh_key.id }}"
+        size_id: "{{ args.droplet_size }}"
+        region_id: "{{ args.region_id }}"
+        unique_name: true
+      register: new_droplet
+
+    - name: Add New Droplet to Host Group
+      add_host:
+        hostname: "{{ new_droplet.droplet.ip_address }}"
+        groupname: tmp_red_team_droplet
+
+    - name: Wait for SSH to start
+      wait_for:
+        host: "{{ new_droplet.droplet.ip_address }}"
+        port: 22
+        delay: 90
+        timeout: 600
+        state: started
+      when: new_droplet.changed
+
+    - name: Add droplet ssh key
+      command: "ssh -o StrictHostKeyChecking=no root@{{ new_droplet.droplet.ip_address }} exit"
+      when: new_droplet.changed
+
+- name: Install Red Team Tools
+  hosts: tmp_red_team_droplet
+  remote_user: root
+
+  tasks:
+  - name: Update OS Packages
+    apt: update_cache=yes upgrade=dist
+
+  - name: Install Additional Packages (apt)
+    include: ./tasks/apt.yml
+
+  - name: Install Additional Packages (pip)
+    include: ./tasks/pip.yml
+
+  - name: Install Empire
+    include: ./tasks/empire.yml
+
+  - name: Install Metasploit
+    include: ./tasks/metasploit.yml
+
+  - name: Configure PostgreSQL/Create database.yml
+    include: ./tasks/postgresql.yml
+
+  - debug:
+      msg: "New C2 server is up and running at {{ ansible_default_ipv4.address }}"

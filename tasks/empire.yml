@@ -1,0 +1,14 @@
+---
+
+- name: Clone Empire
+  git: repo=https://github.com/PowerShellEmpire/Empire.git dest=/opt/Empire/
+
+- name: Setup Database for Empire
+  shell: STAGING_KEY="RANDOM" python /opt/Empire/setup/setup_database.py
+  args:
+    chdir: /opt/Empire/setup/
+
+- name: Create Certificate for Empire
+  shell: /opt/Empire/setup/cert.sh
+  args:
+    chdir: /opt/Empire/setup/

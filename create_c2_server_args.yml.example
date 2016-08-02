@@ -1,0 +1,7 @@
+args:
+  slug: ubuntu-14-04-x64
+  region_id: nyc1
+  droplet_name: redteam1
+  droplet_size: 2gb
+#  lets_encrypt_fqdn: blah.example.com
+#  lets_encrypt_email: test@example.com

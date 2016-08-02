@@ -1,0 +1,10 @@
+---
+
+- name: "Install Packages (pip)"
+  pip: name={{ item }}
+  with_items:
+    - AdvancedHTTPServer
+    - flask
+    - pycrypto
+    - iptools
+    - pydispatcher

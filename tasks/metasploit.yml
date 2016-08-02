@@ -1,0 +1,50 @@
+---
+
+- name: "Install Software Properties Common"
+  apt: name=software-properties-common
+
+- name: "Install BrightBox PPA"
+  apt_repository: repo=ppa:brightbox/ruby-ng update_cache=yes
+
+- name: "Install Ruby (BrightBox PPA)"
+  action: apt name={{ item }} state=latest
+  with_items:
+    - ruby2.1
+    - ruby2.1-dev
+
+- name: "Create Omnibus Directory"
+  file:
+    path: /var/cache/omnibus/
+    state: directory
+    owner: root
+
+- name: "Create MSF Framework Directory"
+  file:
+    path: /opt/metasploit-framework/
+    state: directory
+    owner: root
+
+- name: "Configure git Username"
+  shell: 'git config --global user.name "nobody"'
+
+- name: "Configure git Email"
+  shell: 'git config --global user.email "nobody@example.com"'
+
+- name: "Clone Metasploit Omnibus"
+  git:
+    repo: "https://github.com/rapid7/metasploit-omnibus.git"
+    dest: "/opt/metasploit-omnibus/"
+
+- name: "Execute Bundle Install"
+  shell: "bundle install --binstubs"
+  args:
+    chdir: "/opt/metasploit-omnibus/"
+
+- name: "Build Metasploit Package with Omnibus"
+  shell: "bin/omnibus build metasploit-framework"
+  args:
+    chdir: "/opt/metasploit-omnibus/"
+    executable: /bin/bash
+
+- name: "Install Metasploit Package"
+  shell: "dpkg -i /opt/metasploit-omnibus/pkg/*.deb"
